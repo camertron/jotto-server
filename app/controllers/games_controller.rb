@@ -3,7 +3,7 @@ class GamesController < ActionController::API
 
   # params: player
   def list
-    available, pending, in_progress = [], [], []
+    complete, pending, in_progress = [], [], []
 
     Game.all.each do |game|
       if game.player1.name == params[:player] && !game.player2
@@ -11,28 +11,33 @@ class GamesController < ActionController::API
       elsif game.player1.name == params[:player] || game.player2.name == params[:player]
         in_progress << game
       else
-        available = []
+        complete = []  # @TODO
       end
     end
 
-    final = available.map { |game| compose_game(game, params[:player]).merge(:status => "available") }
-    final += pending.map { |game| compose_game(game, params[:player]).merge(:status => "pending") }
-    final += in_progress.map { |game| compose_game(game, params[:player]).merge(:status => "in_progress") }
+    final = []
+    final << pending.map { |game| compose_game(game, params[:player]).merge(:status => "pending") }
+    final << in_progress.map { |game| compose_game(game, params[:player]).merge(:status => "in_progress") }
+    final << complete.map { |game| compose_game(game, params[:player]).merge(:status => "complete") }
 
     render_json(:games => final)
   end
 
   # params: player, game_name, word
-  def new
-    game = Game.create!(:name => params[:game_name]) do |g|
-      g.player1 = PlayerState.create!(
+  def create
+    ActiveRecord::Base.transaction do
+      game = Game.create!(:name => params[:game_name])
+      game.player1 = PlayerState.create!(
         :name  => params[:player],
         :word  => params[:word],
         :board => (65..90).to_a.map { |c| "#{c.chr}-" }.join(" "),
         :game  => game
       )
+      game.save!
+
+      render_json(:game => compose_game(game, game.player1.name))
+      raise ActiveRecord::Rollback
     end
-    render_json(:game => compose_game(game))
   end
 
   # params: player, game_id, word

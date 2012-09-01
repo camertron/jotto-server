@@ -2,7 +2,7 @@ JottoServer::Application.routes.draw do
   namespace :game do
     match ':player/list' => 'games#list', :as => :list
 
-    match ':player/new/:game_name' => 'games#new_game', :as => :new
+    match ':player/create' => 'games#create', :as => :create
     match ':player/join/:game_id' => 'games#join', :as => :join
 
     match ':player/:game_id/guess/:guess_text' => "games#guess", :as => :guess
