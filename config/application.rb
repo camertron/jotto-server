@@ -60,3 +60,5 @@ module JottoServer
     config.assets.version = '1.0'
   end
 end
+
+$WORD_LENGTH = 5

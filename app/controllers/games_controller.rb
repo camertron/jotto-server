@@ -1,26 +1,50 @@
 class GamesController < ActionController::API
-  WORD_LENGTH = 5
+  # new: Games that I created that haven't been joined yet.
+  # pending: Games that someone else created that are available for me to join.
+  # my_turn: Games that are waiting for my move.
+  # their_turn: Games that are waiting for the other person to move.
+  # complete: Games that either me or my opponent have won.
 
   # params: player
   def list
-    complete, pending, in_progress = [], [], []
+    new, pending, my_turn, their_turn, complete = [], [], [], [], []
+    # games = Game.includes(:player1).includes(:player2).where("player_states.name = ? OR player2s_games.name = ?", params[:player], params[:player])
+    games = Game.all
 
-    Game.all.each do |game|
-      if game.player1.name == params[:player] && !game.player2
+    games.each do |game|
+      if game.player1 && game.player1.name == params[:player]
+        if game.player2
+          if my_turn?(game, params[:player])
+            my_turn << game
+          else
+            their_turn << game
+          end
+        else
+          new << game
+        end
+      elsif game.player1 && game.player1.name != params[:player] && !game.player2
         pending << game
-      elsif game.player1.name == params[:player] || game.player2.name == params[:player]
-        in_progress << game
+      elsif game.player2 && game.player2.name == params[:player]
+        if my_turn?(game, params[:player])
+          my_turn << game
+        else
+          their_turn << game
+        end
       else
-        complete = []  # @TODO
+        # still need to handle completed games
       end
     end
 
     final = []
+    final << new.map { |game| compose_game(game, params[:player]).merge(:status => "new") }
     final << pending.map { |game| compose_game(game, params[:player]).merge(:status => "pending") }
-    final << in_progress.map { |game| compose_game(game, params[:player]).merge(:status => "in_progress") }
+    final << my_turn.map { |game| compose_game(game, params[:player]).merge(:status => "my_turn") }
+    final << their_turn.map { |game| compose_game(game, params[:player]).merge(:status => "their_turn") }
     final << complete.map { |game| compose_game(game, params[:player]).merge(:status => "complete") }
 
     render_json(:games => final)
+  rescue => e
+    render_error_json("Can't list games. #{e.message}")
   end
 
   # params: player, game_name, word
@@ -36,8 +60,9 @@ class GamesController < ActionController::API
       game.save!
 
       render_json(:game => compose_game(game, game.player1.name))
-      raise ActiveRecord::Rollback
     end
+  rescue => e
+    render_error_json("Can't create game. #{e.message}")
   end
 
   # params: player, game_id, word
@@ -45,17 +70,37 @@ class GamesController < ActionController::API
     game = Game.find(params[:game_id])
 
     if game && game.player1.name != params[:player]
-      game.player2 = PlayerState.create!(
-        :name  => params[:player],
-        :word  => params[:word],
-        :board => (65..90).to_a.map { |c| "#{c.chr}-" }.join(" "),
-        :game  => game
-      )
-      game.save!
-      render_json(:game => compose_game(game))
+      unless game.player2
+        ActiveRecord::Base.transaction do
+          game.player2 = PlayerState.new(
+            :name  => params[:player],
+            :word  => params[:word],
+            :board => (65..90).to_a.map { |c| "#{c.chr}-" }.join(" "),
+            :game  => game
+          )
+
+          if game.player2.valid? && game.player2.save
+            if game.valid? && game.save
+              render_json(:game => compose_game(game, params[:player]))
+            else
+              render_invalid_json(game)
+            end
+          else
+            render_invalid_json(game.player2)
+          end
+        end
+      else
+        if game.player2 == params[:player]
+          render_invalid_json(["You've already joined this game."])
+        else
+          render_invalid_json(["This game already has two players."])
+        end
+      end
     else
-      render_error_json("Can't join game")
+      render_invalid_json(["You're the one who started this game."])
     end
+  rescue => e
+    render_error_json("Can't join game. #{e.message}")
   end
 
   def guess
@@ -72,8 +117,8 @@ class GamesController < ActionController::API
         them = game.player1
       end
 
-      me_hash = char_hash(me.word.downcase)
-      count = char_hash(guess_text).count { |key, val| me_hash[key] }
+      them_hash = char_hash(them.word.downcase)
+      count = char_hash(guess_text.downcase).count { |key, val| them_hash[key] }
 
       guess = me.guesses.new(
         :word => guess_text,
@@ -88,11 +133,15 @@ class GamesController < ActionController::API
     else
       render_invalid_json(["It's not your turn yet!"])
     end
+  rescue => e
+    render_error_json("Can't submit guess. #{e.message}")
   end
 
   def my_turn
     game = Game.find(params[:game_id])
     render_json(:my_turn => my_turn?(game, params[:player]))
+  rescue => e
+    render_error_json("Can't check for turn. #{e.message}")
   end
 
   def save
@@ -112,7 +161,7 @@ class GamesController < ActionController::API
       render_invalid_json(player)
     end
   rescue => e
-    render_error_json(e.message)
+    render_error_json("Can't save game. #{e.message}")
   end
 
   private
@@ -135,10 +184,14 @@ class GamesController < ActionController::API
 
   def compose_game(game, player)
     obj = game.attributes.dup.reject { |key, val| %w(player1 player2).include?(key) }
-    obj[:player] = if game.player1.name == player
-      compose_player(game.player1)
+    if game.player1 && (game.player1.name == player)
+      obj[:player] = compose_player(game.player1)
+      obj[:opponent] = game.player2 ? game.player2.name : nil
+    elsif game.player2 && (game.player2.name == player)
+      obj[:player] = compose_player(game.player2)
+      obj[:opponent] = game.player1 ? game.player1.name : nil
     else
-      compose_player(game.player2)
+      obj[:player] = nil
     end
     obj
   end
@@ -161,7 +214,7 @@ class GamesController < ActionController::API
     if model.is_a?(Array)
       hash[:validation_messages] = model
     else
-      hash[:validation_messages] = model.errors.messages.values.flatten
+      hash[:validation_messages] = model.errors.full_messages
     end
 
     render :json => hash

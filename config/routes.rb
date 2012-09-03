@@ -5,7 +5,7 @@ JottoServer::Application.routes.draw do
     match ':player/create' => 'games#create', :as => :create
     match ':player/join/:game_id' => 'games#join', :as => :join
 
-    match ':player/:game_id/guess/:guess_text' => "games#guess", :as => :guess
+    match ':player/:game_id/guess' => "games#guess", :as => :guess
     match ':player/:game_id/my_turn' => "games#my_turn", :as => :my_turn
     match ':player/:game_id/save' => "games#save", :as => :save
   end

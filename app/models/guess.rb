@@ -9,7 +9,6 @@ class Guess < ActiveRecord::Base
       :message => "You have already guessed that word!"
     },
     :length => {
-      :is => GamesController::WORD_LENGTH,
-      :message => "Word must be exactly #{GamesController::WORD_LENGTH} letters long."
+      :is => $WORD_LENGTH,
     }
 end
