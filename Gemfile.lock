@@ -58,7 +58,6 @@ GEM
     net-ssh (2.3.0)
     net-ssh-gateway (1.1.0)
       net-ssh (>= 1.99.1)
-    pg (0.14.1)
     polyglot (0.3.3)
     rack (1.4.1)
     rack-cache (1.2)
@@ -111,7 +110,6 @@ PLATFORMS
 DEPENDENCIES
   capistrano
   json_pure
-  pg
   rails (= 3.2.6)
   rails-api
   sqlite3

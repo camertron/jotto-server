@@ -1,7 +1,0 @@
-new_game (games/new/:name?player1=camertron&player1_word=exits)
-join_game (games/join/:name?player2=camertron&player2_word=never)
-games_available (games/available)
-games_joined (games/joined/:user_id)
-
-games/:id/my_turn
-games/:id/guess/:word

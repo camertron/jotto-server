@@ -4,13 +4,9 @@ gem 'rails', '= 3.2.6'
 gem 'rails-api'
 
 gem 'json_pure'
-
-group :development, :test do
-  gem 'sqlite3'
-end
+gem 'sqlite3'
 
 group :production do
-  gem 'pg'
   gem 'thin'
   gem 'capistrano'
 end
