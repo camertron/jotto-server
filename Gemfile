@@ -12,5 +12,4 @@ end
 group :production do
   gem 'pg'
   gem 'thin'
-  gem 'capistrano'
 end
