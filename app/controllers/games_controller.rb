@@ -14,10 +14,14 @@ class GamesController < ActionController::API
     games.each do |game|
       if game.player1 && game.player1.name == params[:player]
         if game.player2
-          if my_turn?(game, params[:player])
+          if my_turn?(game, params[:player]) && !game.player1.won?
             my_turn << game
           else
-            their_turn << game
+            if game.player1.won? || game.player2.won?
+              complete << game
+            else
+              their_turn << game
+            end
           end
         else
           new << game
@@ -25,13 +29,15 @@ class GamesController < ActionController::API
       elsif game.player1 && game.player1.name != params[:player] && !game.player2
         pending << game
       elsif game.player2 && game.player2.name == params[:player]
-        if my_turn?(game, params[:player])
+        if my_turn?(game, params[:player]) && !game.player2.won?
           my_turn << game
         else
-          their_turn << game
+          if game.player2.won? || game.player1.won?
+            complete << game
+          else
+            their_turn << game
+          end
         end
-      else
-        # still need to handle completed games
       end
     end
 
@@ -117,18 +123,33 @@ class GamesController < ActionController::API
         them = game.player1
       end
 
-      them_hash = char_hash(them.word.downcase)
-      count = char_hash(guess_text.downcase).count { |key, val| them_hash[key] }
+      if !me.won?
+        them_hash = char_hash(them.word.downcase)
+        count = char_hash(guess_text).inject(0) do |sum, (key, val)|
+          sum += [them_hash[key] || 0, val].min
+          sum
+        end
 
-      guess = me.guesses.new(
-        :word => guess_text,
-        :count => count
-      )
+        guess = me.guesses.new(
+          :word => guess_text,
+          :count => count
+        )
 
-      if guess.valid? && guess.save
-        render_json(:guess => guess.attributes)
+        if guess_text == them.word.downcase
+          me.won = true
+        end
+
+        ActiveRecord::Base.transaction do
+          if guess.save! && me.save!
+            attrs = { :guess => guess.attributes, :player => compose_player(me) }
+            attrs[:finished] = true if them.won?  # signal the game is over
+            render_json(attrs)
+          else
+            render_invalid_json(guess)
+          end
+        end
       else
-        render_invalid_json(guess)
+        render_invalid_json(["You've already submitted the correct answer!"])
       end
     else
       render_invalid_json(["It's not your turn yet!"])
@@ -179,7 +200,11 @@ class GamesController < ActionController::API
   end
 
   def char_hash(word)
-    word.each_char.to_a.inject({}) { |ret, char| ret[char] = true; ret }
+    word.each_char.to_a.inject({}) do |ret, char|
+      ret[char] ||= 0
+      ret[char] += 1
+      ret
+    end
   end
 
   def compose_game(game, player)
