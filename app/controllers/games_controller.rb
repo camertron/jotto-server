@@ -1,3 +1,5 @@
+require 'jotto_push_notifier'
+
 class GamesController < ActionController::API
   # new: Games that I created that haven't been joined yet.
   # pending: Games that someone else created that are available for me to join.
@@ -49,8 +51,8 @@ class GamesController < ActionController::API
     final << complete.map { |game| compose_game(game, params[:player]).merge(:status => "complete") }
 
     render_json(:games => final)
-  rescue => e
-    render_error_json("Can't list games. #{e.message}")
+  # rescue => e
+    # render_error_json("Can't list games. #{e.message}")
   end
 
   # params: player, game_name, word
@@ -61,7 +63,8 @@ class GamesController < ActionController::API
         :name  => params[:player],
         :word  => params[:word],
         :board => (65..90).to_a.map { |c| "#{c.chr}-" }.join(" "),
-        :game  => game
+        :game  => game,
+        :device_token => params[:device_token]
       )
       game.save!
 
@@ -82,7 +85,8 @@ class GamesController < ActionController::API
             :name  => params[:player],
             :word  => params[:word],
             :board => (65..90).to_a.map { |c| "#{c.chr}-" }.join(" "),
-            :game  => game
+            :game  => game,
+            :device_token => params[:device_token]
           )
 
           if game.player2.valid? && game.player2.save
@@ -143,6 +147,13 @@ class GamesController < ActionController::API
           if guess.save! && me.save!
             attrs = { :guess => guess.attributes, :player => compose_player(me) }
             attrs[:finished] = true if them.won?  # signal the game is over
+
+            JottoPushNotifier.notify_of_guess({
+              :player_who_guessed => me,
+              :player_to_notify => them,
+              :guess => guess
+            })
+
             render_json(attrs)
           else
             render_invalid_json(guess)

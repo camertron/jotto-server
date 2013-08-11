@@ -7,6 +7,8 @@ gem 'json_pure'
 
 group :development, :test do
   gem 'sqlite3'
+  gem 'pry'
+  gem 'pry-nav'
 end
 
 group :production do
