@@ -29,7 +29,7 @@ class JottoPushNotifier
       message = "#{game.player2.name} just joined the game \"#{game.name}\". It's your turn."
 
       payload = {
-        :aps = {
+        :aps => {
           :alert => message,
           :sound => "chime"
         }
