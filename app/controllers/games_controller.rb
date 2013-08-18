@@ -91,6 +91,7 @@ class GamesController < ActionController::API
 
           if game.player2.valid? && game.player2.save
             if game.valid? && game.save
+              JottoPushNotifier.notify_of_join(:game => game)
               render_json(:game => compose_game(game, params[:player]))
             else
               render_invalid_json(game)

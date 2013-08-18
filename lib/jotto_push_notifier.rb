@@ -16,11 +16,26 @@ class JottoPushNotifier
 
       payload = {
         :aps => {
-          :alert => message
+          :alert => message,
+          :sound => "chime"
         }
       }
 
       notify(player_to_notify.device_token, payload)
+    end
+
+    def notify_of_join(options = {})
+      game = options[:game]
+      message = "#{game.player2.name} just joined the game \"#{game.name}\". It's your turn."
+
+      payload = {
+        :aps = {
+          :alert => message,
+          :sound => "chime"
+        }
+      }
+
+      notify(game.player1.device_token, payload)
     end
 
     private
