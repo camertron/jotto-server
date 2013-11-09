@@ -51,8 +51,8 @@ class GamesController < ActionController::API
     final << complete.map { |game| compose_game(game, params[:player]).merge(:status => "complete") }
 
     render_json(:games => final)
-  # rescue => e
-    # render_error_json("Can't list games. #{e.message}")
+  rescue => e
+    render_error_json("Can't list games. #{e.message}")
   end
 
   # params: player, game_name, word
@@ -140,7 +140,7 @@ class GamesController < ActionController::API
           :count => count
         )
 
-        if guess_text == them.word.downcase
+        if guess_text == them.word.downcase && !them.won?
           me.won = true
         end
 
@@ -223,10 +223,10 @@ class GamesController < ActionController::API
     obj = game.attributes.dup.reject { |key, val| %w(player1 player2).include?(key) }
     if game.player1 && (game.player1.name == player)
       obj[:player] = compose_player(game.player1)
-      obj[:opponent] = game.player2 ? game.player2.name : nil
+      obj[:opponent] = game.player2 ? compose_player(game.player2) : nil
     elsif game.player2 && (game.player2.name == player)
       obj[:player] = compose_player(game.player2)
-      obj[:opponent] = game.player1 ? game.player1.name : nil
+      obj[:opponent] = game.player1 ? compose_player(game.player1) : nil
     else
       obj[:player] = nil
     end
